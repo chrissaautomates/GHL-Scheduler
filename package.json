@@ -1,0 +1,16 @@
+{
+  "name": "ghl-campaign-scheduler",
+  "version": "1.0.0",
+  "description": "Daily cron job that enrolls DMA contacts into GHL workflows on their scheduled warmup date.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6"
+  }
+}
