@@ -11,8 +11,27 @@
 //   GHL_API_VERSION           Optional. Defaults to 2021-07-28
 //   DRY_RUN                   Optional. Set to "true" to log actions without calling the API
 
+console.log("Boot: process starting, node", process.version);
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err && err.stack ? err.stack : err);
+  process.exit(1);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err && err.stack ? err.stack : err);
+  process.exit(1);
+});
+
 import { readFileSync } from "fs";
-import { parse } from "csv-parse/sync";
+
+let parse;
+try {
+  ({ parse } = await import("csv-parse/sync"));
+  console.log("Boot: csv-parse loaded OK");
+} catch (err) {
+  console.error("Boot: failed to load csv-parse/sync:", err && err.stack ? err.stack : err);
+  process.exit(1);
+}
 
 const API_BASE = "https://services.leadconnectorhq.com";
 const API_VERSION = process.env.GHL_API_VERSION || "2021-07-28";
@@ -129,6 +148,7 @@ async function processTrack(rows, trackName, workflowId) {
 }
 
 async function main() {
+  console.log("Boot: entering main()");
   console.log(`=== GHL Campaign Scheduler run for ${todayISO()} ===`);
 
   if (!DRY_RUN && (!API_KEY || !LOCATION_ID)) {
