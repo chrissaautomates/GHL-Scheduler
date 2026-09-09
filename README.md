@@ -59,6 +59,22 @@ live for real.
 - It does not touch the 48 contacts from the business card / event capture
   files, those were intentionally excluded, they're on a separate campaign.
 
+## Newsletter track
+
+A third, optional track. Reads `data/newsletter.csv` the same way as
+nurture/cold, but it's a one-time enrollment per contact, not a fixed-length
+sequence. Recurrence (monthly resends) lives entirely inside the GHL
+workflow: build it as Send Newsletter -> Wait 30 Days -> loop back with
+re-entry allowed, publish it, and this script only ever needs to enroll each
+contact once. `data/newsletter.csv`'s Sequence Start Dates are staggered
+across ~20 days (Oct 1-20, 2026 for the initial list) rather than one giant
+single-day batch, so the daily cron isn't trying to process ~14,000 rows in
+one run.
+
+Set `GHL_NEWSLETTER_WORKFLOW_ID` in Railway once the workflow is published.
+Until that variable is set (or if `data/newsletter.csv` is missing), this
+track is skipped and cold/nurture run exactly as before.
+
 ## Local test run
 
 ```bash

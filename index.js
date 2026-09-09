@@ -22,7 +22,7 @@ process.on("unhandledRejection", (err) => {
   process.exit(1);
 });
 
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 
 let parse;
 try {
@@ -42,6 +42,10 @@ const DRY_RUN = String(process.env.DRY_RUN || "false").toLowerCase() === "true";
 const WORKFLOWS = {
   nurture: process.env.GHL_NURTURE_WORKFLOW_ID,
   cold: process.env.GHL_COLD_WORKFLOW_ID,
+  // Newsletter is optional: only runs once GHL_NEWSLETTER_WORKFLOW_ID is set
+  // and data/newsletter.csv exists, so this deploy doesn't break the
+  // existing cold/nurture cron until that workflow is ready in GHL.
+  newsletter: process.env.GHL_NEWSLETTER_WORKFLOW_ID,
 };
 
 function todayISO() {
@@ -166,9 +170,22 @@ async function main() {
   const nurtureResult = await processTrack(nurtureRows, "nurture", WORKFLOWS.nurture);
   const coldResult = await processTrack(coldRows, "cold", WORKFLOWS.cold);
 
+  // Newsletter: one-time enrollment per contact (Sequence Start Date only
+  // ever matches once). Recurrence after that lives entirely inside the GHL
+  // workflow itself (Send -> Wait 30 Days -> loop with re-entry allowed),
+  // so this script never needs to re-enroll anyone for it.
+  let newsletterResult = { created: 0, found: 0, enrolled: 0, failed: 0 };
+  if (WORKFLOWS.newsletter && existsSync("data/newsletter.csv")) {
+    const newsletterRows = loadCohort("data/newsletter.csv", "newsletter");
+    newsletterResult = await processTrack(newsletterRows, "newsletter", WORKFLOWS.newsletter);
+  } else {
+    console.log("[newsletter] skipped (GHL_NEWSLETTER_WORKFLOW_ID not set or data/newsletter.csv missing)");
+  }
+
   console.log("=== Summary ===");
   console.log("Nurture:", nurtureResult);
   console.log("Cold:", coldResult);
+  console.log("Newsletter:", newsletterResult);
 }
 
 main().catch((err) => {
