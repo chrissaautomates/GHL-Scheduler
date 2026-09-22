@@ -46,6 +46,9 @@ const WORKFLOWS = {
   // and data/newsletter.csv exists, so this deploy doesn't break the
   // existing cold/nurture cron until that workflow is ready in GHL.
   newsletter: process.env.GHL_NEWSLETTER_WORKFLOW_ID,
+  // Recurring30 is optional in the same way: only runs once
+  // GHL_RECURRING30_WORKFLOW_ID is set and data/recurring30.csv exists.
+  recurring30: process.env.GHL_RECURRING30_WORKFLOW_ID,
 };
 
 function todayISO() {
@@ -182,10 +185,22 @@ async function main() {
     console.log("[newsletter] skipped (GHL_NEWSLETTER_WORKFLOW_ID not set or data/newsletter.csv missing)");
   }
 
+  // Recurring30: same one-time-enrollment pattern as newsletter. The 30-day
+  // repeat lives entirely inside the GHL workflow (Send -> Wait 30 Days ->
+  // loop with re-entry allowed), so this script never re-enrolls anyone.
+  let recurring30Result = { created: 0, found: 0, enrolled: 0, failed: 0 };
+  if (WORKFLOWS.recurring30 && existsSync("data/recurring30.csv")) {
+    const recurring30Rows = loadCohort("data/recurring30.csv", "recurring30");
+    recurring30Result = await processTrack(recurring30Rows, "recurring30", WORKFLOWS.recurring30);
+  } else {
+    console.log("[recurring30] skipped (GHL_RECURRING30_WORKFLOW_ID not set or data/recurring30.csv missing)");
+  }
+
   console.log("=== Summary ===");
   console.log("Nurture:", nurtureResult);
   console.log("Cold:", coldResult);
   console.log("Newsletter:", newsletterResult);
+  console.log("Recurring30:", recurring30Result);
 }
 
 main().catch((err) => {

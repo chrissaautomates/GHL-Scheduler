@@ -75,6 +75,19 @@ Set `GHL_NEWSLETTER_WORKFLOW_ID` in Railway once the workflow is published.
 Until that variable is set (or if `data/newsletter.csv` is missing), this
 track is skipped and cold/nurture run exactly as before.
 
+## Recurring30 track
+
+A fourth, optional track, following the exact same pattern as newsletter.
+Reads `data/recurring30.csv` the same way as the other tracks, and it's a
+one-time enrollment per contact via this script, not a fixed-length
+sequence. The 30-day repeat lives entirely inside the GHL workflow: build it
+as Send -> Wait 30 Days -> loop back with re-entry allowed, publish it, and
+this script only ever needs to enroll each contact once.
+
+Set `GHL_RECURRING30_WORKFLOW_ID` in Railway once the workflow is published.
+Until that variable is set (or if `data/recurring30.csv` is missing), this
+track is skipped and the other tracks run exactly as before.
+
 ## Local test run
 
 ```bash
