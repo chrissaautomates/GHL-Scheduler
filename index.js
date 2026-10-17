@@ -56,6 +56,26 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// First-name hygiene. A placeholder is never a real name: it becomes "" so GHL
+// gets an empty first name instead of a fake one, and the greeting drops to "Hi,".
+const PLACEHOLDER_FIRST_NAMES = new Set(["prospect", "friend", "there", "valued", "n/a", "null", "undefined"]);
+
+function cleanFirstName(value) {
+  if (value === null || value === undefined) return "";
+  const name = String(value).trim();
+  return PLACEHOLDER_FIRST_NAMES.has(name.toLowerCase()) ? "" : name;
+}
+
+function buildGreeting(firstName) {
+  const name = cleanFirstName(firstName);
+  return name ? `Hi ${name},` : "Hi,";
+}
+
+// Custom field "greeting" (key contact.greeting) must exist in the GHL location;
+// resolved by key like the rest of this fleet and skipped, with a warning, if absent.
+const GREETING_FIELD_KEY = "contact.greeting";
+let greetingFieldId;
+
 function loadCohort(path, trackName) {
   const raw = readFileSync(path, "utf8");
   const rows = parse(raw, { columns: true, skip_empty_lines: true });
@@ -99,7 +119,7 @@ async function createContact(row) {
   const payload = {
     locationId: LOCATION_ID,
     email: row.Email,
-    firstName: row["First Name"] || undefined,
+    firstName: row["First Name"] || "",
     companyName: row["Business Name"] || undefined,
     tags: row.Trigger_Tag ? [row.Trigger_Tag] : undefined,
   };
