@@ -94,3 +94,76 @@ track is skipped and the other tracks run exactly as before.
 npm install
 DRY_RUN=true node index.js
 ```
+
+## Engage October track (one-time send)
+
+Sends "Newsletter 1, Try DMA Engage, October" once per contact. Reads
+`data/engage-oct.csv` (built by `node scripts/build-engage-oct.js` from
+`data/recurring30.csv`; `unknown` is dropped and test addresses are listed in
+`data/engage-oct-skipped.csv`). Order: `engaged`, `hot_30`, `warm_90`, then
+`cold_90plus`, which stays off unless `ENGAGE_OCT_INCLUDE_COLD_90PLUS=true`.
+
+Runs only when `GHL_ENGAGE_OCT_WORKFLOW_ID` is set. The workflow ID is
+`c8b88064-7203-4370-b952-652681d799c9`: **set `GHL_ENGAGE_OCT_WORKFLOW_ID` to
+that value in Railway (service Variables)**. Daily volume comes from
+`ENGAGE_OCT_RAMP` (default `700,1000,1500`, day 0 = 2026-10-27, the last
+number repeats) until the list is done; `ENGAGE_OCT_END` (default 2026-11-30)
+is a safety stop. Remove the workflow variable when the send is finished.
+
+Before enrolling anyone, the run asks the GHL API whether the workflow is
+published. A draft workflow always refuses. If GHL cannot confirm it (missing
+API scope, workflow not listed, API error) the run refuses unless you set
+`ENGAGE_OCT_WORKFLOW_CONFIRMED=true` after checking in GHL that it is
+published. A contact is never tagged unless the enrollment succeeded and the
+workflow was confirmed.
+
+Each run enrolls the next batch of contacts that do not carry the GHL tag
+`engage-oct-sent`, skipping anyone with email DND, an invalid email, or a test
+address, and adds that tag right after a successful enrollment. Reruns cannot
+double send. At the start of a run, one paginated search reads every contact
+already tagged, and those are skipped without a per-contact lookup (about 125
+calls instead of thousands by Nov 3 and Nov 6). If that search fails or is
+incomplete, nothing is lost: every contact about to be enrolled still has its
+tags checked individually first. Skips other than already-tagged are logged as
+`[engage-oct] SKIPPED email: reason`.
+GHL calls are paced at 150 ms; 429s are retried, and 5xx errors are retried
+only for lookups and tags, never for enroll or create.
+
+`ENGAGE_OCT_PAUSE=true` stops the send. A bounce rate above 3% or complaint
+rate above 0.3% in the previous batch pauses it (exit code 1) until
+`ENGAGE_OCT_IGNORE_STATS=true`; that guard needs batch stats from GHL, which
+are not wired in yet, so it is **inactive**. Every run logs one line at each end:
+
+```
+[engage-oct] START mode=LIVE guard=INACTIVE ... limit=700
+[engage-oct] END mode=LIVE guard=INACTIVE attempted=.. enrolled=.. skipped=.. failed=.. halted=..
+```
+
+### Canary
+
+Set `ENGAGE_OCT_TEST_EMAIL=you@example.com` (with the workflow ID).
+The run then touches only that address through the real path (lookup, create if
+missing, enroll), ignores the ramp and the date window, skips every other track,
+and does not write the sent tag. It logs `CANARY enrolled ...` and the END line.
+**Remove the variable afterwards**: while it is set, the real send never runs.
+
+### Daily check (you are the stats guard)
+
+Because the guard is inactive, check the previous day's send each morning before
+the 13:00 UTC cron:
+
+1. GHL > Marketing > Emails > Statistics (set the date range to yesterday): bounce
+   rate must stay under 3% and spam complaints under 0.3%; note unsubscribes.
+2. GHL > Automation > Workflows > the Engage October workflow > Stats / Execution
+   Logs: enrolled count should match the run's `enrolled=` in the Railway log, and
+   there should be no failed email actions.
+
+If either is out of range, set `ENGAGE_OCT_PAUSE=true` in Railway Variables. Pausing
+only stops new enrollments; contacts already in the workflow keep going.
+
+| Goal | Railway variable |
+| --- | --- |
+| Pause the send | `ENGAGE_OCT_PAUSE=true` (remove to resume) |
+| Lower daily volume | `ENGAGE_OCT_RAMP=300` (every day sends 300; list e.g. `300,500` for day 0, then 500 onward) |
+| Stop for good | remove `GHL_ENGAGE_OCT_WORKFLOW_ID`, or set `ENGAGE_OCT_END` to a past date |
+| Resume after the auto-pause | `ENGAGE_OCT_IGNORE_STATS=true` |
